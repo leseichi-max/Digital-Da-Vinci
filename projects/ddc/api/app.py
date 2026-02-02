@@ -72,7 +72,7 @@ async def lifespan(app: FastAPI):
     # 필요 시 정리 로직 (DB 커넥션 종료 등)
 
 app = FastAPI(
-    title="SHawn-Brain D-CNS API",
+    title="Digital Da Vinci API",
     version="5.5.0",
     description="Digital Central Nervous System Interface",
     lifespan=lifespan

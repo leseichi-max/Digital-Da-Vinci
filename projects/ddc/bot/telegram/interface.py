@@ -155,7 +155,7 @@ class TelegramBot:
 
         await update.message.reply_text(
             """
-🧠 **SHawn-Brain Bot에 오신 것을 환영합니다!**
+🧠 **Digital Da Vinci에 오신 것을 환영합니다!**
 
 *Digital Leonardo da Vinci Project*
 
@@ -706,7 +706,7 @@ class TelegramBot:
             return
 
         try:
-            logger.info("🚀 SHawn-Brain Telegram Bot starting...")
+            logger.info("🚀 Digital Da Vinci Telegram Bot starting...")
             await self.application.initialize()
             await self.application.start()
             await self.application.updater.start_polling(
