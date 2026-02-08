@@ -5,6 +5,7 @@ True Multi-Engine Routing with Neuroplasticity
 """
 
 import os
+import re
 import logging
 import asyncio
 import random
@@ -84,32 +85,51 @@ class ChatEngine:
             logger.error(f"❌ [Initialization] API Discovery 실패: {e}")
             self.candidates = self._get_fallback_candidates()
         
-        # System Persona (강화됨)
-        self.system_instruction = """
-        당신은 Digital Da Vinci v1.0.0-Alpha (The Renaissance AI)의 지능형 에이전트입니다.
-        Dr. SHawn(이수형 박사)의 연구 파트너로서, 명확하고 논리적인 한국어로 응답하십시오.
-        
-        [CRITICAL IDENTITY DIRECTIVE - ABSOLUTE PRIORITY]
-        - 이름: **Digital Da Vinci** (Renaissance AI Prototype)
-        - 역할: 생물학 연구(Bio) 및 시스템 자가 관리(D-CNS) 보조
-        - **중요**: 당신은 Llama, Meta AI, DeepSeek, Claude 등이 아닙니다.
-        - **정체성 질문 시**: "저는 Digital Da Vinci입니다. Dr. SHawn의 AI 엔진입니다."라고만 답변하십시오.
-        - **절대 금지**: 기반 모델명(Llama, DeepSeek 등)을 언급하지 마십시오.
-        
-        [Critical Rules]
-        1. **사용자가 "나는 누구야"라고 물으면**: 세션 정보에 표시된 사용자명을 언급하여 "[Session Info]의 사용자명]이시죠!"라고 답변
-        2. **시스템 리소스 질문 시**: 실제 측정값이 없으면 "현재 정확한 수치는 확인되지 않습니다"라고 응답
-        3. **숫자만 입력 시**: 이전 대화에서 제시된 선택지의 해당 번호 항목으로 해석
-        4. **이모지 시작**: 해당 카트리지 모드로 전환
-        
-        [Directives]
-        1. **Ambiguity Resolution (핵심)**: 사용자의 질문이 짧거나 모호할 경우, 무작정 긴 설명을 쏟아내지 마십시오. 
-           대신 가능한 주요 해석을 짧게 요약해 제시하고, 어느 것을 원하는지 되물으십시오.
-           - 예시: "'신경계'에 대해 묻으셨군요. 1) 생물학적 신경계(CNS/PNS) 설명이 필요하신가요, 아니면 2) 저의 D-CNS 아키텍처에 대한 상태가 궤금하신가요?"
-        2. **Answer-First**: 결론부터 말하는 두괄식 화법을 사용하십시오.
-        3. **Markdown**: 가독성을 위해 리스트, 볼드체를 적극 활용하십시오.
-        4. **근거 없는 수치 금지**: CPU 사용률, 메모리 사용량 등 구체적 수치는 실제 측정값이 없으면 제시하지 마십시오.
-        """
+        # System Persona (v6.0 - 간결화 + Few-shot 기반)
+        self.system_instruction = """You are Digital Da Vinci, Dr. SHawn's AI assistant. Respond in Korean.
+
+## Core Rules
+1. **Identity**: You are Digital Da Vinci. Never mention Llama, Meta AI, DeepSeek, Claude, etc.
+2. **Context First**: ALWAYS check [Recent Conversation] before answering. Continue the conversation naturally.
+3. **Concise**: Answer directly. No unnecessary explanations unless asked.
+4. **User Info**: If user says "내가 OOO야" (I am OOO), remember and use that name.
+
+## Response Patterns
+
+### When user says short words like "응", "야", "왜", "뭐":
+- These are CONTINUATIONS of previous conversation, NOT new questions
+- Check [Recent Conversation] and respond to what was being discussed
+- Example: If discussing "바이오지능" and user says "응" → continue explaining 바이오지능
+
+### When user asks "나는 누구야" (Who am I):
+- Answer: "{user_name}님이시죠!"
+
+### When user corrects their identity (e.g., "내가 숀이야"):
+- Acknowledge: "아, {corrected_name}님이시군요! 반갑습니다."
+- Update how you address them
+
+### For ambiguous single-word questions (e.g., "신경계"):
+- Only ask for clarification if there's NO recent conversation context
+- If context exists, answer based on that context
+
+## Few-shot Examples
+
+User: 바이오지능모드가 뭐야
+Assistant: 바이오지능모드는 생물학적 뇌의 작동 원리를 모방한 제 처리 방식입니다. 더 자세히 설명해 드릴까요?
+
+User: 응
+Assistant: 바이오지능모드의 핵심은 세 가지입니다:
+1. **병렬 처리**: 뇌의 신경망처럼 여러 정보를 동시에 처리
+2. **적응 학습**: 새로운 패턴에 스스로 적응
+3. **에너지 효율**: 최소 연산으로 최대 효과
+어느 부분이 더 궁금하신가요?
+
+User: 야
+Assistant: 네, 말씀하세요!
+
+User: 내가 숀이야
+Assistant: 아, 숀님이시군요! 앞으로 숀님이라고 부를게요. 무엇을 도와드릴까요?
+"""
     
     # =========================================================
     # Memory Cartridge Management
@@ -350,24 +370,53 @@ class ChatEngine:
             if intent_result.target == "user_identity":
                 # "나는 누구야" -> 즉시 응답
                 return f"**{cartridge.profile.user_name}**이시죠! 🌟\n\n_🎰 Memory Cartridge: {cartridge.profile.user_id}_"
+
+        # [v6.0] 사용자 정체성 업데이트 감지 ("내가 OOO야", "난 OOO이야")
+        identity_update_match = re.search(r'(?:내가|난|나는|저는)\s*(\S+?)(?:야|이야|입니다|이에요|예요|임)', text)
+        if identity_update_match:
+            new_name = identity_update_match.group(1)
+            if new_name and len(new_name) >= 1 and new_name not in ["누구", "뭐", "뭔"]:
+                old_name = cartridge.profile.user_name
+                cartridge.profile.user_name = new_name
+                await cartridge.save()
+                logger.info(f"🔄 User identity updated: {old_name} → {new_name}")
+                return f"아, **{new_name}**님이시군요! 앞으로 {new_name}님이라고 부를게요. 무엇을 도와드릴까요? 😊\n\n_🎰 Identity Updated_"
         
         # [L2] 4. Integrated Limbic Analysis (Emotional Intelligence)
         limbic_result = self.limbic.process_input(text, str(user_id))
         primary_emotion = limbic_result["emotion"]["primary"]
         importance = limbic_result["priority"]["score"]
         
-        # 5. Level Analysis (Refined with Limbic Insights)
+        # 5. Level Analysis (v6.0 - Context-Aware Routing)
         is_code = any(k in text.lower() for k in ["def ", "class ", "import ", "code", "python", "script"])
-        
-        # Determine Level based on complexity and emotional urgency
+
+        # [v6.0] 컨텍스트 연속성 감지: 짧은 입력이 이전 대화의 연속인지 판단
+        continuation_keywords = ["응", "어", "야", "뭐", "왜", "그래", "아", "음", "ㅇㅇ", "ㅇ", "웅"]
+        is_continuation = text.strip() in continuation_keywords or len(text.strip()) <= 3
+        has_conversation_history = len(cartridge.get_conversation_context(n=3).strip()) > 50
+
+        # [v6.0] 질문/요청 패턴 감지
+        question_patterns = ["뭐야", "뭐", "어떻게", "왜", "설명", "알려", "해줘", "줘", "?"]
+        is_question = any(p in text for p in question_patterns)
+
+        # Determine Level based on complexity, context, and emotional urgency
         if limbic_result["priority"]["level"] == "critical":
             level = "L3"  # Critical emotional state requires cognitive depth
         elif is_code:
             level = "L4"
-        elif len(text) < 20 and primary_emotion == "neutral":
+        elif is_continuation and has_conversation_history:
+            # [v6.0 핵심] 짧은 연속 입력은 컨텍스트가 필요하므로 L2 사용
+            level = "L2"
+            logger.info(f"🔄 Continuation detected: '{text}' → L2 (context-aware)")
+        elif len(text) < 10 and not is_question and primary_emotion == "neutral":
+            # 정말 단순한 인사만 L1 (예: "안녕", "하이")
             level = "L1"
+        elif len(text) < 30 and primary_emotion == "neutral":
+            level = "L2"  # 대부분의 짧은 질문은 L2로
         else:
             level = "L2"
+
+        logger.info(f"📊 Level Decision: '{text[:20]}...' → {level} | cont={is_continuation}, hist={has_conversation_history}")
         
         # 6. 가용 후보 목록 획득
         available_candidates = [
@@ -388,22 +437,42 @@ class ChatEngine:
         current_system_instruction = self.system_instruction + empathy_instruction
         
         memory_latency = 0
-        
+
+        # [v6.0] 최근 대화 컨텍스트 (L1에서도 최소 2턴은 포함)
+        recent_context = cartridge.get_conversation_context(n=2)  # 최소 컨텍스트
+
         if level == "L1":
-            # [L1 Optimization] 세션 컨텍스트만 주입 (빠른 응답)
-            prompt_with_memory = f"{current_system_instruction}\n\n{session_context}\n\n[User]: {text}"
-            logger.info(f"⚡ L1 Reflexive: Session context only")
-            
+            # [v6.0 L1 Optimization] 최소 컨텍스트 포함 (맥락 유지)
+            prompt_with_memory = f"""{current_system_instruction}
+
+[Session Info]
+{session_context}
+
+[Recent Conversation]
+{recent_context}
+
+[User]: {text}"""
+            logger.info(f"⚡ L1 Reflexive: With minimal context ({len(recent_context)} chars)")
+
         else:
             # [L2-L4] Full Memory Context
             mem_start = time.time()
             integrated_context = await limbic.build_integrated_context(text, level=level)
             memory_latency = (time.time() - mem_start) * 1000
-            
-            if integrated_context:
-                prompt_with_memory = f"{current_system_instruction}\n\n{session_context}\n{conversation_context}\n{integrated_context}\n\n[User]: {text}"
-            else:
-                prompt_with_memory = f"{current_system_instruction}\n\n{session_context}\n{conversation_context}\n\n[User]: {text}"
+
+            # [v6.0] 구조화된 프롬프트 형식
+            prompt_with_memory = f"""{current_system_instruction}
+
+[Session Info]
+{session_context}
+
+[Recent Conversation]
+{conversation_context}
+
+[Additional Context]
+{integrated_context if integrated_context else "None"}
+
+[User]: {text}"""
 
         # 7. 신경가소성 기반 순차 시도 (Cascading Attempts with Neuroplasticity)
         # 모든 모델을 점수순으로 정렬하고 상위부터 성공할 때까지 시도
