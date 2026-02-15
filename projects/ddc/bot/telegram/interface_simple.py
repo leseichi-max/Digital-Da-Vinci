@@ -155,8 +155,8 @@ class TelegramBot:
         self.app.run_polling()
 
 if __name__ == "__main__":
-    # Token 우선순위: Argument > Env Var > Hardcoded (Dev)
-    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or "***REDACTED_TELEGRAM_TOKEN***"
+    # Never hardcode bot tokens. Use env vars or a local .env (gitignored).
+    TOKEN = os.getenv("TELEGRAM_BOT_TOKEN") or ""
     
     if not TOKEN:
         logger.critical("❌ Telegram Token missing!")
